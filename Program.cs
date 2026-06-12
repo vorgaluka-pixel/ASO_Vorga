@@ -1,41 +1,43 @@
 using Microsoft.EntityFrameworkCore;
 using TodoApp.Data;
 
-var builder = WebApplication.CreateBuilder(args);
+var constructorAplicatie = WebApplication.CreateBuilder(args);
 
 // ── Servicii ────────────────────────────────────────────────────────────────
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
+constructorAplicatie.Services.AddControllers();
+constructorAplicatie.Services.AddEndpointsApiExplorer();
+constructorAplicatie.Services.AddSwaggerGen(cfg =>
 {
-    c.SwaggerDoc("v1", new() { Title = "TodoApp API", Version = "v1" });
+    cfg.SwaggerDoc("v1", new() { Title = "TodoApp API", Version = "v1" });
 });
 
 // Baza de date SQLite (fișier local todo.db)
-builder.Services.AddDbContext<AppDbContext>(opt =>
-    opt.UseSqlite(builder.Configuration.GetConnectionString("Default")
-                  ?? "Data Source=todo.db"));
+constructorAplicatie.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseSqlite(
+        constructorAplicatie.Configuration.GetConnectionString("Default")
+        ?? "Data Source=todo.db"
+    ));
 
-var app = builder.Build();
+var aplicatie = constructorAplicatie.Build();
 
 // ── Migrare automată la pornire ──────────────────────────────────────────────
-using (var scope = app.Services.CreateScope())
+using (var scope = aplicatie.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();   // creează schema dacă nu există
+    var bazaDate = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    bazaDate.Database.EnsureCreated();
 }
 
 // ── Middleware ───────────────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+if (aplicatie.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    aplicatie.UseSwagger();
+    aplicatie.UseSwaggerUI();
 }
 
-app.UseDefaultFiles();      // servește wwwroot/index.html la "/"
-app.UseStaticFiles();
+aplicatie.UseDefaultFiles();
+aplicatie.UseStaticFiles();
 
-app.UseRouting();
-app.MapControllers();
+aplicatie.UseRouting();
+aplicatie.MapControllers();
 
-app.Run();
+aplicatie.Run();
