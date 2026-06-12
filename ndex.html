@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>TodoApp</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: 40px auto;
+            background: #f4f4f4;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        form, .todo {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+        }
+
+        input, textarea, select, button {
+            width: 100%;
+            margin-top: 8px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        .todo.completed {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .actions button {
+            width: auto;
+            flex: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>TodoApp</h1>
+
+    <form id="todoForm">
+        <input type="text" id="title" placeholder="Titlu task" required>
+        <textarea id="description" placeholder="Descriere"></textarea>
+        <select id="priority">
+            <option value="0">Prioritate scăzută</option>
+            <option value="1" selected>Prioritate normală</option>
+            <option value="2">Prioritate ridicată</option>
+        </select>
+        <button type="submit">Adaugă task</button>
+    </form>
+
+    <div id="todos"></div>
+
+    <script>
+        const apiUrl = "/api/todos";
+        const form = document.getElementById("todoForm");
+        const todosDiv = document.getElementById("todos");
+
+        async function loadTodos() {
+            const response = await fetch(apiUrl);
+            const todos = await response.json();
+
+            todosDiv.innerHTML = "";
+
+            todos.forEach(todo => {
+                const div = document.createElement("div");
+                div.className = "todo" + (todo.isCompleted ? " completed" : "");
+
+                div.innerHTML = `
+                    <h3>${todo.title}</h3>
+                    <p>${todo.description || ""}</p>
+                    <p>Prioritate: ${getPriorityText(todo.priority)}</p>
+                    <p>Status: ${todo.isCompleted ? "Finalizat" : "Activ"}</p>
+                    <div class="actions">
+                        <button onclick="toggleTodo(${todo.id})">
+                            ${todo.isCompleted ? "Reactivează" : "Finalizează"}
+                        </button>
+                        <button onclick="deleteTodo(${todo.id})">Șterge</button>
+                    </div>
+                `;
+
+                todosDiv.appendChild(div);
+            });
+        }
+
+        function getPriorityText(priority) {
+            if (priority === 0) return "Scăzută";
+            if (priority === 2) return "Ridicată";
+            return "Normală";
+        }
+
+        form.addEventListener("submit", async function (e) {
+            e.preventDefault();
+
+            const todo = {
+                title: document.getElementById("title").value,
+                description: document.getElementById("description").value,
+                priority: parseInt(document.getElementById("priority").value)
+            };
+
+            await fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(todo)
+            });
+
+            form.reset();
+            loadTodos();
+        });
+
+        async function toggleTodo(id) {
+            await fetch(`${apiUrl}/${id}/toggle`, {
+                method: "PATCH"
+            });
+
+            loadTodos();
+        }
+
+        async function deleteTodo(id) {
+            if (!confirm("Sigur vrei să ștergi acest task?")) return;
+
+            await fetch(`${apiUrl}/${id}`, {
+                method: "DELETE"
+            });
+
+            loadTodos();
+        }
+
+        loadTodos();
+    </script>
+</body>
+</html>
