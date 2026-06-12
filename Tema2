@@ -1,0 +1,382 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <winsvc.h>
+
+#include <algorithm>
+#include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+struct InformatiiServiciu {
+    std::string nume;
+    std::string numeAfisat;
+    std::string tipPornire;
+    DWORD idProces;
+};
+
+static std::string TipPornireLaText(DWORD tip)
+{
+    switch (tip) {
+        case SERVICE_AUTO_START:   return "Automat";
+        case SERVICE_DEMAND_START: return "Manual";
+        case SERVICE_DISABLED:     return "Dezactivat";
+        case SERVICE_BOOT_START:   return "Boot";
+        case SERVICE_SYSTEM_START: return "System";
+        default:                   return "Necunoscut";
+    }
+}
+
+static std::string ObtineTipPornire(SC_HANDLE managerServicii, const std::string& numeServiciu)
+{
+    SC_HANDLE handleServiciu = OpenServiceA(
+        managerServicii,
+        numeServiciu.c_str(),
+        SERVICE_QUERY_CONFIG
+    );
+
+    if (!handleServiciu)
+        return "N/A";
+
+    DWORD dimensiuneNecesara = 0;
+
+    QueryServiceConfigA(
+        handleServiciu,
+        nullptr,
+        0,
+        &dimensiuneNecesara
+    );
+
+    if (dimensiuneNecesara == 0) {
+        CloseServiceHandle(handleServiciu);
+        return "N/A";
+    }
+
+    std::vector<BYTE> zonaMemorie(dimensiuneNecesara);
+
+    QUERY_SERVICE_CONFIGA* configurare =
+        reinterpret_cast<QUERY_SERVICE_CONFIGA*>(zonaMemorie.data());
+
+    std::string rezultat = "N/A";
+
+    if (QueryServiceConfigA(
+            handleServiciu,
+            configurare,
+            dimensiuneNecesara,
+            &dimensiuneNecesara))
+    {
+        rezultat = TipPornireLaText(configurare->dwStartType);
+    }
+
+    CloseServiceHandle(handleServiciu);
+
+    return rezultat;
+}
+
+
+static std::vector<InformatiiServiciu> ObtineServiciiActive(SC_HANDLE managerServicii)
+{
+    std::vector<InformatiiServiciu> listaServicii;
+
+    DWORD bytesNecesari = 0;
+    DWORD numarServicii = 0;
+    DWORD handleReluare = 0;
+
+    EnumServicesStatusExA(
+        managerServicii,
+        SC_ENUM_PROCESS_INFO,
+        SERVICE_WIN32,
+        SERVICE_ACTIVE,
+        nullptr,
+        0,
+        &bytesNecesari,
+        &numarServicii,
+        &handleReluare,
+        nullptr
+    );
+
+    DWORD codEroare = GetLastError();
+
+    if (codEroare != ERROR_MORE_DATA) {
+        std::cerr << "Eroare initiala EnumServicesStatusEx: "
+                  << codEroare << "\n";
+        return listaServicii;
+    }
+
+    std::vector<BYTE> memorie(bytesNecesari);
+
+    BOOL rezultat = EnumServicesStatusExA(
+        managerServicii,
+        SC_ENUM_PROCESS_INFO,
+        SERVICE_WIN32,
+        SERVICE_ACTIVE,
+        memorie.data(),
+        static_cast<DWORD>(memorie.size()),
+        &bytesNecesari,
+        &numarServicii,
+        &handleReluare,
+        nullptr
+    );
+
+    if (!rezultat) {
+        std::cerr << "Eroare la enumerarea serviciilor: "
+                  << GetLastError() << "\n";
+        return listaServicii;
+    }
+
+    ENUM_SERVICE_STATUS_PROCESSA* elemente =
+        reinterpret_cast<ENUM_SERVICE_STATUS_PROCESSA*>(memorie.data());
+
+
+    for (DWORD pozitie = 0; pozitie < numarServicii; pozitie++)
+    {
+        InformatiiServiciu informatie;
+
+        informatie.nume = elemente[pozitie].lpServiceName;
+        informatie.numeAfisat = elemente[pozitie].lpDisplayName;
+        informatie.idProces =
+            elemente[pozitie].ServiceStatusProcess.dwProcessId;
+
+        informatie.tipPornire =
+            ObtineTipPornire(managerServicii, informatie.nume);
+
+        listaServicii.push_back(informatie);
+    }
+
+
+    std::sort(
+        listaServicii.begin(),
+        listaServicii.end(),
+        [](const InformatiiServiciu& primul,
+           const InformatiiServiciu& alDoilea)
+        {
+            return primul.numeAfisat < alDoilea.numeAfisat;
+        }
+    );
+
+    return listaServicii;
+}
+static std::string DataOraCurenta()
+{
+    time_t timpActual = time(nullptr);
+
+    tm timpLocal{};
+    localtime_s(&timpLocal, &timpActual);
+
+    char rezultat[64];
+
+    strftime(
+        rezultat,
+        sizeof(rezultat),
+        "%Y-%m-%d %H:%M:%S",
+        &timpLocal
+    );
+
+    return rezultat;
+}
+
+
+static void AfiseazaServicii(
+    const std::vector<InformatiiServiciu>& listaServicii,
+    std::ostream& iesire)
+{
+    const int LAT_NR = 5;
+    const int LAT_NUME = 35;
+    const int LAT_AFISARE = 45;
+    const int LAT_PID = 10;
+    const int LAT_START = 14;
+
+
+    auto linieSeparare = [&]()
+    {
+        iesire << "+"
+               << std::string(LAT_NR + 2, '-')
+               << "+"
+               << std::string(LAT_NUME + 2, '-')
+               << "+"
+               << std::string(LAT_AFISARE + 2, '-')
+               << "+"
+               << std::string(LAT_PID + 2, '-')
+               << "+"
+               << std::string(LAT_START + 2, '-')
+               << "+\n";
+    };
+
+
+    auto afisareRand = [&](const std::string& numar,
+                           const std::string& nume,
+                           const std::string& numeAfisat,
+                           const std::string& pid,
+                           const std::string& pornire)
+    {
+        iesire << "| "
+               << std::left
+               << std::setw(LAT_NR)
+               << numar
+               << " | "
+               << std::setw(LAT_NUME)
+               << nume.substr(0, LAT_NUME)
+               << " | "
+               << std::setw(LAT_AFISARE)
+               << numeAfisat.substr(0, LAT_AFISARE)
+               << " | "
+               << std::setw(LAT_PID)
+               << pid
+               << " | "
+               << std::setw(LAT_START)
+               << pornire
+               << " |\n";
+    };
+
+
+    linieSeparare();
+
+    afisareRand(
+        "Nr.",
+        "Nume serviciu",
+        "Nume afisat",
+        "PID",
+        "Tip pornire"
+    );
+
+    linieSeparare();
+
+
+    int contor = 1;
+
+    for (const auto& serviciu : listaServicii)
+    {
+        afisareRand(
+            std::to_string(contor++),
+            serviciu.nume,
+            serviciu.numeAfisat,
+            std::to_string(serviciu.idProces),
+            serviciu.tipPornire
+        );
+    }
+
+
+    linieSeparare();
+
+
+    iesire << "\nTotal servicii active: "
+           << listaServicii.size()
+           << "\n";
+}
+
+
+
+int main(int numarArgumente, char* argumente[])
+{
+    SetConsoleOutputCP(CP_UTF8);
+
+
+    std::string fisierIesire;
+
+
+    if (numarArgumente >= 2)
+    {
+        fisierIesire = argumente[1];
+    }
+
+
+    SC_HANDLE managerServicii = OpenSCManagerA(
+        nullptr,
+        nullptr,
+        SC_MANAGER_ENUMERATE_SERVICE
+    );
+
+
+    if (!managerServicii)
+    {
+        DWORD codEroare = GetLastError();
+
+
+        std::cerr
+            << "Nu s-a putut deschide Service Control Manager.\n";
+
+        std::cerr
+            << "Cod eroare: "
+            << codEroare
+            << "\n";
+
+
+        if (codEroare == ERROR_ACCESS_DENIED)
+        {
+            std::cerr
+                << "Rulati programul cu drepturi de Administrator.\n";
+        }
+
+
+        return 1;
+    }
+
+
+
+    std::vector<InformatiiServiciu> listaServicii =
+        ObtineServiciiActive(managerServicii);
+
+
+
+    CloseServiceHandle(managerServicii);
+
+
+
+    std::string antet =
+        "===== SERVICII WINDOWS CARE RULEAZA IN MOMENTUL CURENT =====\n"
+        "Data si ora scanarii: "
+        + DataOraCurenta()
+        + "\n";
+
+
+
+    std::cout
+        << "\n"
+        << antet
+        << "\n";
+
+
+    AfiseazaServicii(
+        listaServicii,
+        std::cout
+    );
+
+
+
+    if (!fisierIesire.empty())
+    {
+        std::ofstream fisier(
+            fisierIesire,
+            std::ios::out | std::ios::trunc
+        );
+
+
+        if (fisier.is_open())
+        {
+            fisier << antet << "\n";
+
+
+            AfiseazaServicii(
+                listaServicii,
+                fisier
+            );
+
+
+            std::cout
+                << "\nRezultatul a fost exportat in fisierul: "
+                << fisierIesire
+                << "\n";
+        }
+        else
+        {
+            std::cerr
+                << "\nNu s-a putut crea fisierul de export.\n";
+        }
+    }
+
+
+    return 0;
+}
