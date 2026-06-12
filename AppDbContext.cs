@@ -5,17 +5,23 @@ namespace TodoApp.Data;
 
 public class AppDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+    public AppDbContext(DbContextOptions<AppDbContext> optiuni) 
+        : base(optiuni) { }
 
     public DbSet<TodoItem> TodoItems => Set<TodoItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<TodoItem>(entity =>
+        modelBuilder.Entity<TodoItem>(entitate =>
         {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Title).IsRequired().HasMaxLength(200);
-            entity.Property(e => e.Description).HasMaxLength(1000);
+            entitate.HasKey(e => e.Id);
+
+            entitate.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entitate.Property(e => e.Description)
+                .HasMaxLength(1000);
         });
     }
 }
