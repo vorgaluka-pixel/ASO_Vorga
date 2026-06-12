@@ -9,114 +9,114 @@ namespace TodoApp.Controllers;
 [Route("api/[controller]")]
 public class TodosController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly AppDbContext _context;
 
-    public TodosController(AppDbContext db)
+    public TodosController(AppDbContext context)
     {
-        _db = db;
+        _context = context;
     }
 
     // GET /api/todos
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] bool? completed)
+    public async Task<IActionResult> GetAll([FromQuery] bool? esteFinalizat)
     {
-        var query = _db.TodoItems.AsQueryable();
+        var interogare = _context.TodoItems.AsQueryable();
 
-        if (completed.HasValue)
-            query = query.Where(t => t.IsCompleted == completed.Value);
+        if (esteFinalizat.HasValue)
+            interogare = interogare.Where(t => t.IsCompleted == esteFinalizat.Value);
 
-        var items = await query
+        var lista = await interogare
             .AsNoTracking()
             .OrderByDescending(t => t.Priority)
             .ThenBy(t => t.CreatedAt)
             .ToListAsync();
 
-        return Ok(items);
+        return Ok(lista);
     }
 
     // GET /api/todos/{id}
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var item = await _db.TodoItems
+        var element = await _context.TodoItems
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.Id == id);
 
-        return item is null ? NotFound() : Ok(item);
+        return element is null ? NotFound() : Ok(element);
     }
 
     // POST /api/todos
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateTodoDto dto)
+    public async Task<IActionResult> Create([FromBody] CreateTodoDto date)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var todo = new TodoItem
+        var sarcina = new TodoItem
         {
-            Title       = dto.Title,
-            Description = dto.Description,
-            Priority    = dto.Priority
+            Title = date.Title,
+            Description = date.Description,
+            Priority = date.Priority
         };
 
-        _db.TodoItems.Add(todo);
-        await _db.SaveChangesAsync();
+        _context.TodoItems.Add(sarcina);
+        await _context.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetById), new { id = todo.Id }, todo);
+        return CreatedAtAction(nameof(GetById), new { id = sarcina.Id }, sarcina);
     }
 
     // PUT /api/todos/{id}
     [HttpPut("{id:int}")]
-    public async Task<IActionResult> Update(int id, [FromBody] UpdateTodoDto dto)
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateTodoDto date)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        var todo = await _db.TodoItems.FindAsync(id);
-        if (todo is null) return NotFound();
+        var sarcina = await _context.TodoItems.FindAsync(id);
+        if (sarcina is null) return NotFound();
 
-        if (dto.Title is not null)
-            todo.Title = dto.Title;
+        if (date.Title is not null)
+            sarcina.Title = date.Title;
 
-        if (dto.Description is not null)
-            todo.Description = dto.Description;
+        if (date.Description is not null)
+            sarcina.Description = date.Description;
 
-        if (dto.Priority.HasValue)
-            todo.Priority = dto.Priority.Value;
+        if (date.Priority.HasValue)
+            sarcina.Priority = date.Priority.Value;
 
-        if (dto.IsCompleted.HasValue && todo.IsCompleted != dto.IsCompleted.Value)
+        if (date.IsCompleted.HasValue && sarcina.IsCompleted != date.IsCompleted.Value)
         {
-            todo.IsCompleted = dto.IsCompleted.Value;
-            todo.CompletedAt = todo.IsCompleted ? DateTime.UtcNow : null;
+            sarcina.IsCompleted = date.IsCompleted.Value;
+            sarcina.CompletedAt = sarcina.IsCompleted ? DateTime.UtcNow : null;
         }
 
-        await _db.SaveChangesAsync();
-        return Ok(todo);
+        await _context.SaveChangesAsync();
+        return Ok(sarcina);
     }
 
     // PATCH /api/todos/{id}/toggle
     [HttpPatch("{id:int}/toggle")]
     public async Task<IActionResult> Toggle(int id)
     {
-        var todo = await _db.TodoItems.FindAsync(id);
-        if (todo is null) return NotFound();
+        var sarcina = await _context.TodoItems.FindAsync(id);
+        if (sarcina is null) return NotFound();
 
-        todo.IsCompleted  = !todo.IsCompleted;
-        todo.CompletedAt  = todo.IsCompleted ? DateTime.UtcNow : null;
+        sarcina.IsCompleted = !sarcina.IsCompleted;
+        sarcina.CompletedAt = sarcina.IsCompleted ? DateTime.UtcNow : null;
 
-        await _db.SaveChangesAsync();
-        return Ok(todo);
+        await _context.SaveChangesAsync();
+        return Ok(sarcina);
     }
 
     // DELETE /api/todos/{id}
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var todo = await _db.TodoItems.FindAsync(id);
-        if (todo is null) return NotFound();
+        var sarcina = await _context.TodoItems.FindAsync(id);
+        if (sarcina is null) return NotFound();
 
-        _db.TodoItems.Remove(todo);
-        await _db.SaveChangesAsync();
+        _context.TodoItems.Remove(sarcina);
+        await _context.SaveChangesAsync();
         return NoContent();
     }
 }
