@@ -1,0 +1,71 @@
+#include <windows.h>
+#include <stdio.h>
+#include <tchar.h>
+
+#define MAX 256
+
+void AfisareSubchei(HKEY cheieRadacina, LPCTSTR caleSubcheie)
+{
+    HKEY cheie;
+    DWORD index = 0;
+    DWORD dimensiune;
+
+    TCHAR numeSubcheie[MAX];
+
+    LSTATUS rezultat = RegOpenKeyEx(cheieRadacina, caleSubcheie, 0, KEY_READ, &cheie);
+
+    if (rezultat != ERROR_SUCCESS)
+    {
+        if (rezultat == ERROR_FILE_NOT_FOUND)
+        {
+            printf("Key not found.\n");
+            return;
+        }
+        else
+        {
+            printf("Error opening key. Code: %ld\n", rezultat);
+            return;
+        }
+    }
+
+    _tprintf(TEXT("Subcheile din: HKEY_CURRENT_USER\%s\n\n"), caleSubcheie);
+
+    while (1)
+    {
+        dimensiune = MAX;
+
+        rezultat = RegEnumKeyEx(
+            cheie,
+            index,
+            numeSubcheie,
+            &dimensiune,
+            NULL,
+            NULL,
+            NULL,
+            NULL
+        );
+
+        if (rezultat == ERROR_SUCCESS)
+        {
+            _tprintf(TEXT("Subcheia: %s [%lu]\n"), numeSubcheie, index);
+            index++;
+        }
+        else if (rezultat == ERROR_NO_MORE_ITEMS)
+        {
+            _tprintf(TEXT("\nAm gasit %lu subchei.\n"), index);
+            break;
+        }
+        else
+        {
+            printf("Eroare la enumerare. Code: %ld\n", rezultat);
+            break;
+        }
+    }
+
+    RegCloseKey(cheie);
+}
+
+int main(void)
+{
+    AfisareSubchei(HKEY_CURRENT_USER, TEXT("SOFTWARE\Microsoft"));
+    return 0;
