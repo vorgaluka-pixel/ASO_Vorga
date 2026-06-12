@@ -2,7 +2,8 @@
 <html lang="ro">
 <head>
     <meta charset="UTF-8">
-    <title>TodoApp</title>
+    <title>Aplicație Taskuri</title>
+
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,7 +16,7 @@
             text-align: center;
         }
 
-        form, .todo {
+        form, .task {
             background: white;
             padding: 15px;
             margin-bottom: 15px;
@@ -33,7 +34,7 @@
             cursor: pointer;
         }
 
-        .todo.completed {
+        .task.completed {
             opacity: 0.6;
             text-decoration: line-through;
         }
@@ -49,100 +50,107 @@
         }
     </style>
 </head>
-<body>
-    <h1>TodoApp</h1>
 
-    <form id="todoForm">
+<body>
+    <h1>Task Manager</h1>
+
+    <form id="taskForm">
         <input type="text" id="title" placeholder="Titlu task" required>
         <textarea id="description" placeholder="Descriere"></textarea>
+
         <select id="priority">
             <option value="0">Prioritate scăzută</option>
             <option value="1" selected>Prioritate normală</option>
             <option value="2">Prioritate ridicată</option>
         </select>
+
         <button type="submit">Adaugă task</button>
     </form>
 
-    <div id="todos"></div>
+    <div id="tasks"></div>
 
     <script>
-        const apiUrl = "/api/todos";
-        const form = document.getElementById("todoForm");
-        const todosDiv = document.getElementById("todos");
+        const api = "/api/todos";
 
-        async function loadTodos() {
-            const response = await fetch(apiUrl);
-            const todos = await response.json();
+        const form = document.getElementById("taskForm");
+        const container = document.getElementById("tasks");
 
-            todosDiv.innerHTML = "";
+        async function incarcaTaskuri() {
+            const response = await fetch(api);
+            const taskuri = await response.json();
 
-            todos.forEach(todo => {
-                const div = document.createElement("div");
-                div.className = "todo" + (todo.isCompleted ? " completed" : "");
+            container.innerHTML = "";
 
-                div.innerHTML = `
-                    <h3>${todo.title}</h3>
-                    <p>${todo.description || ""}</p>
-                    <p>Prioritate: ${getPriorityText(todo.priority)}</p>
-                    <p>Status: ${todo.isCompleted ? "Finalizat" : "Activ"}</p>
+            taskuri.forEach(task => {
+                const card = document.createElement("div");
+
+                card.className = "task" + (task.isCompleted ? " completed" : "");
+
+                card.innerHTML = `
+                    <h3>${task.title}</h3>
+                    <p>${task.description || ""}</p>
+                    <p>Prioritate: ${afiseazaPrioritate(task.priority)}</p>
+                    <p>Status: ${task.isCompleted ? "Finalizat" : "Activ"}</p>
+
                     <div class="actions">
-                        <button onclick="toggleTodo(${todo.id})">
-                            ${todo.isCompleted ? "Reactivează" : "Finalizează"}
+                        <button onclick="schimbaStatus(${task.id})">
+                            ${task.isCompleted ? "Reactivează" : "Finalizează"}
                         </button>
-                        <button onclick="deleteTodo(${todo.id})">Șterge</button>
+
+                        <button onclick="stergeTask(${task.id})">Șterge</button>
                     </div>
                 `;
 
-                todosDiv.appendChild(div);
+                container.appendChild(card);
             });
         }
 
-        function getPriorityText(priority) {
+        function afiseazaPrioritate(priority) {
             if (priority === 0) return "Scăzută";
             if (priority === 2) return "Ridicată";
             return "Normală";
         }
 
-        form.addEventListener("submit", async function (e) {
+        form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
-            const todo = {
+            const taskNou = {
                 title: document.getElementById("title").value,
                 description: document.getElementById("description").value,
                 priority: parseInt(document.getElementById("priority").value)
             };
 
-            await fetch(apiUrl, {
+            await fetch(api, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify(todo)
+                body: JSON.stringify(taskNou)
             });
 
             form.reset();
-            loadTodos();
+            incarcaTaskuri();
         });
 
-        async function toggleTodo(id) {
-            await fetch(`${apiUrl}/${id}/toggle`, {
+        async function schimbaStatus(id) {
+            await fetch(`${api}/${id}/toggle`, {
                 method: "PATCH"
             });
 
-            loadTodos();
+            incarcaTaskuri();
         }
 
-        async function deleteTodo(id) {
+        async function stergeTask(id) {
             if (!confirm("Sigur vrei să ștergi acest task?")) return;
 
-            await fetch(`${apiUrl}/${id}`, {
+            await fetch(`${api}/${id}`, {
                 method: "DELETE"
             });
 
-            loadTodos();
+            incarcaTaskuri();
         }
 
-        loadTodos();
+        incarcaTaskuri();
     </script>
 </body>
 </html>
